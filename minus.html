@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Subtraction Game with Counting Voice</title>
+  <style>
+    body {
+      font-family: "Comic Sans MS", cursive;
+      background-color: #fff8dc;
+      text-align: center;
+      padding: 20px;
+    }
+    h1 {
+      color: #ff6600;
+    }
+    .vertical-math {
+      font-size: 40px;
+      margin-top: 20px;
+      margin-bottom: 10px;
+      line-height: 1.2;
+    }
+    .vertical-math .line {
+      border-top: 2px solid #000;
+      width: 60px;
+      margin: 4px auto 0;
+    }
+    .circle-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 20px;
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .circle {
+      width: 50px;
+      height: 50px;
+      background-color: #cccccc; /* empty circle */
+      border-radius: 50%;
+      display: inline-block;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      user-select: none;
+    }
+    .colored {
+      background-color: #00ccff; /* colored circle */
+    }
+    .removed {
+      background-color: #999999; /* "subtracted" circle */
+    }
+    #answerSection {
+      margin-top: 20px;
+    }
+    input[type="number"] {
+      padding: 8px;
+      font-size: 24px;
+      width: 100px;
+      text-align: center;
+      border-radius: 8px;
+      border: 2px solid #888;
+    }
+    #result {
+      margin-top: 15px;
+      font-size: 28px;
+      font-weight: bold;
+    }
+    .correct {
+      color: green;
+    }
+    .incorrect {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🔢 Subtract and Enter the Answer</h1>
+
+  <div class="vertical-math" id="verticalMath"></div>
+
+  <div class="circle-container" id="circleContainer"></div>
+
+  <div id="answerSection">
+    <input type="number" id="userAnswer" placeholder="?" disabled />
+  </div>
+
+  <div id="result"></div>
+
+  <script>
+    let total = 0;     // number to add circles for
+    let subtract = 0;  // number to subtract (discolor circles)
+    let addedCount = 0;     // how many colored circles added
+    let removedCount = 0;   // how many circles subtracted
+
+    // Speak given text using SpeechSynthesis
+    function speak(text) {
+      if ('speechSynthesis' in window) {
+        // Cancel any ongoing speech for clarity
+        speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        speechSynthesis.speak(utterance);
+      }
+    }
+
+    // Convert number to words 1..10 (for counting)
+    function numberToWord(num) {
+      const words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+      return words[num] || num.toString();
+    }
+
+    function generateGame() {
+      document.getElementById("result").textContent = "";
+      document.getElementById("result").className = "";
+      const input = document.getElementById("userAnswer");
+      input.value = "";
+      input.disabled = true;
+
+      total = Math.floor(Math.random() * 6) + 5; // 5 to 10
+      subtract = Math.floor(Math.random() * (total - 1)) + 1;
+
+      addedCount = 0;
+      removedCount = 0;
+
+      document.getElementById("verticalMath").innerHTML = `
+        <div>${total}</div>
+        <div>- ${subtract}</div>
+        <div class="line"></div>
+      `;
+
+      renderCircles(10); // always 10 circles max for adding
+    }
+
+    function renderCircles(num) {
+      const container = document.getElementById("circleContainer");
+      container.innerHTML = "";
+
+      for (let i = 0; i < num; i++) {
+        const circle = document.createElement("div");
+        circle.className = "circle";
+
+        circle.addEventListener("click", () => {
+          if (!circle.classList.contains("colored") && addedCount < total) {
+            // Step 1: Add colored circles (up to total)
+            circle.classList.add("colored");
+            addedCount++;
+            speak(numberToWord(addedCount));
+            checkIfReadyToSubtract();
+          } else if (circle.classList.contains("colored") && !circle.classList.contains("removed")) {
+            // Step 2: Subtract by removing color only if enough circles added
+            if (addedCount === total) {
+              circle.classList.add("removed");
+              removedCount++;
+              speak(numberToWord(removedCount));
+              checkIfReadyForAnswer();
+            } else {
+              // Not enough circles added yet, speak reminder
+              speak("Please add more circles first!");
+            }
+          }
+        });
+
+        container.appendChild(circle);
+      }
+    }
+
+    function checkIfReadyToSubtract() {
+      if (addedCount === total) {
+        speak("Great! Now click circles to subtract.");
+      }
+    }
+
+    function checkIfReadyForAnswer() {
+      if (removedCount === subtract) {
+        enableAnswerInput();
+      }
+    }
+
+    function enableAnswerInput() {
+      const input = document.getElementById("userAnswer");
+      input.disabled = false;
+      input.focus();
+      const correctAnswer = total - subtract;
+      const resultBox = document.getElementById("result");
+
+      // Remove previous input event listeners to avoid duplicates
+      input.replaceWith(input.cloneNode(true));
+      const newInput = document.getElementById("userAnswer");
+
+      newInput.addEventListener("input", () => {
+        const enteredValue = parseInt(newInput.value);
+        if (!isNaN(enteredValue)) {
+          if (enteredValue === correctAnswer) {
+            resultBox.innerHTML = `✅ Correct! ${total} - ${subtract} = ${correctAnswer}`;
+            resultBox.className = "correct";
+            newInput.disabled = true;
+            speak("Correct! Well done!");
+            setTimeout(generateGame, 3000);
+          } else {
+            resultBox.innerHTML = `❌ Try again!`;
+            resultBox.className = "incorrect";
+          }
+        } else {
+          resultBox.textContent = "";
+          resultBox.className = "";
+        }
+      });
+    }
+
+    generateGame();
+  </script>
+
+</body>
+</html>
