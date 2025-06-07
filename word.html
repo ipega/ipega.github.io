@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Build a Word with Circles - Toddler Game</title>
+<style>
+  body {
+    font-family: "Comic Sans MS", cursive;
+    background: #fff8dc;
+    text-align: center;
+    padding: 20px;
+  }
+  h1 {
+    color: #ff6600;
+  }
+  #wordSlots {
+    margin: 20px auto;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+  }
+  .slot {
+    width: 60px;
+    height: 60px;
+    border: 3px solid #ff6600;
+    border-radius: 50%;
+    line-height: 60px;
+    font-size: 40px;
+    background-color: #fff;
+    user-select: none;
+    cursor: pointer;
+  }
+  .filled {
+    background-color: #00ccff;
+    color: white;
+    border-color: #0088cc;
+  }
+  #letters {
+    margin-top: 30px;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+  }
+  .letter {
+    width: 60px;
+    height: 60px;
+    background-color: #ff6600;
+    color: white;
+    border-radius: 50%;
+    line-height: 60px;
+    font-size: 40px;
+    cursor: grab;
+    user-select: none;
+  }
+  .letter:active {
+    cursor: grabbing;
+  }
+  #result {
+    margin-top: 30px;
+    font-size: 28px;
+    font-weight: bold;
+  }
+  .correct {
+    color: green;
+  }
+  .incorrect {
+    color: red;
+  }
+  #newWordBtn {
+    margin-top: 25px;
+    background-color: #ff6600;
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    font-size: 18px;
+    border-radius: 12px;
+    cursor: pointer;
+  }
+  #newWordBtn:hover {
+    background-color: #cc5200;
+  }
+</style>
+</head>
+<body>
+
+<h1>Build a Word with Circles</h1>
+
+<div id="wordSlots" aria-label="Word slots for letters" role="list"></div>
+
+<div id="letters" aria-label="Draggable letter choices" role="list"></div>
+
+<div id="result" role="alert" aria-live="assertive"></div>
+
+<button id="newWordBtn" aria-label="Load new word">New Word</button>
+
+<script>
+  // List of words for the game (add or change as you want)
+  // List of words for the game (mostly 3-letter words plus some extras)
+const words = [
+  "CAT", "DOG", "BAT", "SUN", "CAR", "PEN", "HAT", "RUN", "FOX", "BOX",
+  "BEE", "COW", "PIG", "ANT", "OWL", "MAP", "JAR", "RAT", "BUG", "POP",
+  "LOG", "NET", "TOP", "TIP", "ZIP"
+];
+
+
+  const wordSlots = document.getElementById("wordSlots");
+  const lettersDiv = document.getElementById("letters");
+  const resultDiv = document.getElementById("result");
+  const newWordBtn = document.getElementById("newWordBtn");
+
+  let currentWord = "";
+
+  // Scramble array helper
+  function scramble(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  let draggedLetter = null;
+
+  function onDragStart(e) {
+    draggedLetter = e.target;
+    e.dataTransfer.setData("text/plain", e.target.textContent);
+    e.dataTransfer.effectAllowed = "move";
+    e.target.setAttribute("aria-grabbed", "true");
+  }
+
+  function onDragEnd(e) {
+    e.target.setAttribute("aria-grabbed", "false");
+    draggedLetter = null;
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    if (!draggedLetter) return;
+
+    const slot = e.target;
+    if (!slot.classList.contains("slot")) return;
+
+    // If slot already filled, return letter back to lettersDiv and clear slot
+    if (slot.classList.contains("filled")) {
+      const letterInSlot = slot.textContent;
+      slot.textContent = "";
+      slot.classList.remove("filled");
+
+      const letterDivBack = document.createElement("div");
+      letterDivBack.className = "letter";
+      letterDivBack.textContent = letterInSlot;
+      letterDivBack.draggable = true;
+      letterDivBack.setAttribute("aria-grabbed", "false");
+      letterDivBack.setAttribute("role", "listitem");
+      letterDivBack.addEventListener("dragstart", onDragStart);
+      letterDivBack.addEventListener("dragend", onDragEnd);
+      lettersDiv.appendChild(letterDivBack);
+    }
+
+    // Add dragged letter to slot
+    slot.textContent = draggedLetter.textContent;
+    slot.classList.add("filled");
+
+    // Remove dragged letter from lettersDiv
+    draggedLetter.remove();
+    draggedLetter = null;
+
+    checkWord();
+  }
+
+  // Check the formed word
+  function checkWord() {
+    const slots = document.querySelectorAll(".slot");
+    let formedWord = "";
+    for (let slot of slots) {
+      if (!slot.classList.contains("filled")) {
+        resultDiv.textContent = "";
+        return; // incomplete
+      }
+      formedWord += slot.textContent;
+    }
+
+    speak(formedWord);
+
+    if (formedWord === currentWord) {
+      resultDiv.textContent = "✅ Correct! Great job!";
+      resultDiv.className = "correct";
+    } else {
+      resultDiv.textContent = "❌ Not quite. Try again!";
+      resultDiv.className = "incorrect";
+    }
+  }
+
+  // Speech helper
+  function speak(text) {
+    if ("speechSynthesis" in window) {
+      speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      speechSynthesis.lang = "en-US";
+      speechSynthesis.speak(utterance);
+    }
+  }
+
+  // Initialize game with a word
+  function initGame() {
+    resultDiv.textContent = "";
+    wordSlots.innerHTML = "";
+    lettersDiv.innerHTML = "";
+
+    // Pick a random word from the list
+    currentWord = words[Math.floor(Math.random() * words.length)];
+
+    // Create empty slots
+    for (let i = 0; i < currentWord.length; i++) {
+      const slot = document.createElement("div");
+      slot.className = "slot";
+      slot.dataset.index = i;
+      slot.setAttribute("aria-label", `Empty slot ${i + 1}`);
+      slot.setAttribute("role", "listitem");
+      slot.addEventListener("dragover", e => e.preventDefault());
+      slot.addEventListener("drop", onDrop);
+      wordSlots.appendChild(slot);
+    }
+
+    // Create scrambled draggable letters
+    const letters = scramble(currentWord.split(""));
+    letters.forEach((letter, idx) => {
+      const letterDiv = document.createElement("div");
+      letterDiv.className = "letter";
+      letterDiv.textContent = letter;
+      letterDiv.draggable = true;
+      letterDiv.id = `letter-${idx}`;
+      letterDiv.setAttribute("aria-grabbed", "false");
+      letterDiv.setAttribute("role", "listitem");
+      letterDiv.addEventListener("dragstart", onDragStart);
+      letterDiv.addEventListener("dragend", onDragEnd);
+      lettersDiv.appendChild(letterDiv);
+    });
+  }
+
+  // New word button click
+  newWordBtn.addEventListener("click", () => {
+    // Cancel any speech in progress
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    initGame();
+  });
+
+  // Start first game
+  initGame();
+</script>
+
+</body>
+</html>
