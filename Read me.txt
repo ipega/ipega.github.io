@@ -1,0 +1,18 @@
+The following files are downloaded from, https://colab.research.google.com/drive/1vgvhFfY7nG-FnwJZNqoUfVlwOdNp5G9W#scrollTo=yeeEhQlxj0G0
+Populate_Table_Pega_Rules_Reference_Inheritance_Data.ipynb
+populate_table_pega_rules_reference_inheritance_data.py
+1.	Once the Acvtivity populates a json list of files for Application rules or Pega platform rules, the above collab does following steps
+2.	Extracts the meaningful rule json based on context_rule_schema. Refer to data folder
+3.	Insert that to Top_rules and reference rules table
+4.	Initialize a LLM and send the meaningful Rule json to get its business description
+5.	Get the Top down rule structure which can be sent to LLM too to get high level Business idea
+
+This appproach is helpful to understand a traditional application and later the understanding can be seamlessly transferred to blueprint for rule creation
+This approach can be used to understand the code in channels issue
+
+
+Output of this is a sqllite rules.db having everything but business description
+
+Now call samplerules.ipynb after passing the rules.db as input
+It`s in Kaggle so for collab may need little modification such as input file and output file etc
+once this notebook finishes, rulesdb top_rules table would be having business description.
