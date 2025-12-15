@@ -1,201 +1,235 @@
-This is the **right question** — it goes to the heart of **why decision- & data-driven CLM works** and **why Case Types should remain unchanged**.
-
-Short answer:
-
-> **You can add a new task for an EMEA country WITHOUT changing the Case Type**
-> **if (and only if) tasks are generated via decisions + data**.
-
-Below is the **exact, concrete pattern** to do this correctly in Pega.
+below is a **clear, concrete explanation of what “Use Situational Layer Cake (SLC) in decisions, not Case Types” really means**, **why Pega recommends it**, and **how to implement it correctly for an EMEA-first, global CLM platform**.
 
 ---
 
-# Target principle (non-negotiable)
+# What the statement really means
 
-> **Case Type defines stages, not tasks**
-> **Tasks are data-driven artifacts created at runtime**
+> **SLC is meant to vary *behavior*, not *structure***
+
+* **Case Types** define **structure**
+  (stages, lifecycle, legal workflow)
+* **Decisions** define **behavior**
+  (rules, eligibility, KYC, approvals, SLAs)
 
 So:
 
-* ❌ Do **not** add tasks directly in Case Type
-* ❌ Do **not** add new assignments in flows per country
-* ✅ Add tasks via **decision + data**
+* **Do NOT layer Case Types by product/region**
+* **DO layer decision rules by region/country/product**
 
 ---
 
-# 1️⃣ One-time Case Type setup (done once)
+# Wrong vs Right (very important)
 
-### Case Type has:
-
-* Stable stages
-* Generic “Generate Tasks” flow in each stage
-
-Example:
+## ❌ WRONG: SLC on Case Types
 
 ```
-Stage: Due Diligence
-  └─ Process: GenerateDDTasks
+CLM-Work-Onboarding              (Base)
+ ├─ CLM-Work-Onboarding-EMEA
+ │    ├─ CLM-Work-Onboarding-DE
+ │    ├─ CLM-Work-Onboarding-FR
+ ├─ CLM-Work-Onboarding-APAC
 ```
 
-This **never changes** again.
+### Why this fails
+
+* Case Type explosion
+* Structural changes propagate widely
+* Heavy regression testing
+* Poor App Studio transparency
+* Hard to audit
 
 ---
 
-# 2️⃣ Task catalog as DATA (this is the key)
+## ✅ RIGHT: SLC on Decisions
 
-### 📘 Data Type: `CLM_Task_Definition`
+```
+CLM-Decision-KYCRequirements     (Base)
+ ├─ EMEA
+ │    ├─ Germany
+ │    ├─ France
+ ├─ APAC
+ ├─ AMER
+```
 
-| Field          | Example      |
-| -------------- | ------------ |
-| TaskCode       | EMEA_DE_UBO  |
-| Stage          | DueDiligence |
-| Region         | EMEA         |
-| Country        | DE           |
-| EntityType     | Corporate    |
-| RiskTier       | High         |
-| AssignmentType | Human        |
-| FlowToCall     | CollectUBO   |
-| Mandatory      | true         |
-| SLAProfile     | EMEA_HIGH    |
+### Why this works
 
-Each **row = one possible task**.
+* Case Type remains stable
+* Behavior varies cleanly
+* Localized testing
+* Clear audit trace
 
 ---
 
-# 3️⃣ Decision rule to select tasks
+# How to implement SLC in decisions (step-by-step)
 
-### Decision Table: `CLM-Decision-ResolveTasks`
+## 1️⃣ Stable global Case Type
 
-**Inputs**
+```
+CLM-Work-Onboarding
+```
 
-* `.Region`
+No region, no product logic here.
+
+---
+
+## 2️⃣ Context keys (facts, not classes)
+
+Define **facts** used by decisions:
+
+* `.Region` → EMEA / APAC / AMER
 * `.Country`
+* `.ProductCode`
 * `.EntityType`
 * `.RiskTier`
-* `.ProductCode`
 
-**Output**
+These are **data**, not class names.
 
-* List of `TaskCode`
+---
 
-This decision uses **SLC**:
+## 3️⃣ Decision rule structure (example: KYC)
+
+### Base decision
+
+**Rule**: `CLM-Decision-KYCRequirements`
+
+* Covers global minimum KYC
+
+---
+
+### EMEA layer
+
+**Applies To**: same class
+**Circumstance**: `.Region = "EMEA"`
+
+Adds:
+
+* EU AML rules
+* GDPR-related constraints
+
+---
+
+### Country layer (Germany)
+
+**Circumstance**:
 
 ```
-Base
- ├─ EMEA
-     ├─ Germany
+.Region = "EMEA"
+.Country = "DE"
+```
+
+Adds:
+
+* German-specific documents
+* Local regulator rules
+
+---
+
+### Product refinement (optional)
+
+```
+.ProductFamily = "CORP"
 ```
 
 ---
 
-# 4️⃣ Generic task generation flow (reusable)
+## 4️⃣ Decision execution (in flows)
 
-### Flow: `GenerateTasks_Generic`
+In a **generic flow**:
 
 ```
-Start
- ↓
-Call CLM-Decision-ResolveTasks
- ↓
-For Each TaskCode
-   ↓
-Create Assignment / Call Subflow
- ↓
-End
+Call CLM-Decision-KYCRequirements
+→ returns list of required documents
 ```
 
 Same flow for all regions.
 
 ---
 
-# 5️⃣ Adding a NEW EMEA country task (your exact question)
+# How SLC works with decisions (important distinction)
 
-### Example
+| SLC Element           | Case Type    | Decision     |
+| --------------------- | ------------ | ------------ |
+| Layered variation     | ❌ Structural | ✅ Behavioral |
+| Frequency of change   | Rare         | Frequent     |
+| Testing scope         | Wide         | Localized    |
+| Audit clarity         | Low          | High         |
+| App Studio visibility | Limited      | Clear        |
 
-> New German regulator requires “Enhanced Beneficial Owner Review”
+---
 
-### Steps (NO Case Type change)
+# Regulatory & audit advantage (why regulators prefer this)
 
-1️⃣ Add new row in `CLM_Task_Definition`
+Auditors ask:
+
+> “Why did you request UBO document for this customer?”
+
+With decision SLC:
+
+* Decision trace shows:
+
+  * Region = EMEA
+  * Country = DE
+  * Rule version
+  * Outcome
+
+With Case Type SLC:
+
+* Must inspect inheritance chain
+* Hard to prove determinism
+
+---
+
+# Testing model (your earlier concern addressed)
+
+### Decision change (Germany KYC rule)
+
+* Test:
+
+  * `CLM-Decision-KYCRequirements_DE`
+* No Case Type regression
+
+### Case Type change (rare)
+
+* Test once globally
+
+---
+
+# When (rarely) SLC on Case Types is acceptable
+
+✔ Different **legal lifecycle**
+✔ Different **regulatory process**
+✔ Different **operating model**
+
+Example:
 
 ```
-TaskCode = EMEA_DE_EBO_REVIEW
-Country = DE
-Stage = DueDiligence
+CLM-Work-Onboarding
+CLM-Work-Offboarding
 ```
 
-2️⃣ Update decision rule (`Germany` layer)
+Not:
 
 ```
-If Country = DE
-→ Include EMEA_DE_EBO_REVIEW
+CLM-Work-Onboarding-DE
+CLM-Work-Onboarding-FR
 ```
 
-3️⃣ (Optional) Add a new reusable subflow if needed
+---
 
-🚫 No Case Type change
-🚫 No lifecycle change
-🚫 No stage change
+# Final principle (memorize this)
+
+> **Use Case Types to model “what must always happen”**
+> **Use Decisions (with SLC) to model “what varies by region/product/risk”**
+
+This is **exactly how Pega intends SLC to be used** in large, regulated platforms.
 
 ---
 
-# 6️⃣ When WOULD you need to change Case Type?
+If you want next, I can:
 
-Only if:
-
-* A **new stage** is legally required
-* Lifecycle order changes
-* Case closure semantics change
-
-These are **rare** and global.
-
----
-
-# 7️⃣ Why this satisfies regulators
-
-For any case, you can show:
-
-* Country = DE
-* Decision output = task added
-* Decision version
-* Task execution evidence
-
-This is **stronger than Case Type changes**.
-
----
-
-# 8️⃣ Testing impact (important)
-
-| Change              | Test scope             |
-| ------------------- | ---------------------- |
-| New DE task         | DE decision tests only |
-| New task definition | Data validation        |
-| Case Type change    | Global regression      |
-
----
-
-# 9️⃣ Anti-patterns to avoid
-
-❌ Adding assignments in Case Type
-❌ Country-specific flows
-❌ Circumstanced Case Types
-❌ Hard-coded task logic
-
----
-
-# Final answer (clear)
-
-> **You do NOT modify the Case Type to add a new EMEA task.**
-> **You add data + decision logic.**
-
-If adding a task forces you to modify the Case Type, **the design is not decision-driven**.
-
----
-
-If you want, I can next:
-
-* Draw the **exact Pega rules & classes**
-* Provide **sample decision tables**
-* Show **task orchestration pseudocode**
-* Validate this against **Pega guardrails**
+* Provide a **full SLC decision hierarchy diagram**
+* Show **actual Pega decision table examples**
+* Design a **CLM decision catalog**
+* Map this to **Pega guardrail wording**
 
 Just tell me.
