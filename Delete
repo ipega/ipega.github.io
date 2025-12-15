@@ -1,0 +1,201 @@
+This is the **right question** — it goes to the heart of **why decision- & data-driven CLM works** and **why Case Types should remain unchanged**.
+
+Short answer:
+
+> **You can add a new task for an EMEA country WITHOUT changing the Case Type**
+> **if (and only if) tasks are generated via decisions + data**.
+
+Below is the **exact, concrete pattern** to do this correctly in Pega.
+
+---
+
+# Target principle (non-negotiable)
+
+> **Case Type defines stages, not tasks**
+> **Tasks are data-driven artifacts created at runtime**
+
+So:
+
+* ❌ Do **not** add tasks directly in Case Type
+* ❌ Do **not** add new assignments in flows per country
+* ✅ Add tasks via **decision + data**
+
+---
+
+# 1️⃣ One-time Case Type setup (done once)
+
+### Case Type has:
+
+* Stable stages
+* Generic “Generate Tasks” flow in each stage
+
+Example:
+
+```
+Stage: Due Diligence
+  └─ Process: GenerateDDTasks
+```
+
+This **never changes** again.
+
+---
+
+# 2️⃣ Task catalog as DATA (this is the key)
+
+### 📘 Data Type: `CLM_Task_Definition`
+
+| Field          | Example      |
+| -------------- | ------------ |
+| TaskCode       | EMEA_DE_UBO  |
+| Stage          | DueDiligence |
+| Region         | EMEA         |
+| Country        | DE           |
+| EntityType     | Corporate    |
+| RiskTier       | High         |
+| AssignmentType | Human        |
+| FlowToCall     | CollectUBO   |
+| Mandatory      | true         |
+| SLAProfile     | EMEA_HIGH    |
+
+Each **row = one possible task**.
+
+---
+
+# 3️⃣ Decision rule to select tasks
+
+### Decision Table: `CLM-Decision-ResolveTasks`
+
+**Inputs**
+
+* `.Region`
+* `.Country`
+* `.EntityType`
+* `.RiskTier`
+* `.ProductCode`
+
+**Output**
+
+* List of `TaskCode`
+
+This decision uses **SLC**:
+
+```
+Base
+ ├─ EMEA
+     ├─ Germany
+```
+
+---
+
+# 4️⃣ Generic task generation flow (reusable)
+
+### Flow: `GenerateTasks_Generic`
+
+```
+Start
+ ↓
+Call CLM-Decision-ResolveTasks
+ ↓
+For Each TaskCode
+   ↓
+Create Assignment / Call Subflow
+ ↓
+End
+```
+
+Same flow for all regions.
+
+---
+
+# 5️⃣ Adding a NEW EMEA country task (your exact question)
+
+### Example
+
+> New German regulator requires “Enhanced Beneficial Owner Review”
+
+### Steps (NO Case Type change)
+
+1️⃣ Add new row in `CLM_Task_Definition`
+
+```
+TaskCode = EMEA_DE_EBO_REVIEW
+Country = DE
+Stage = DueDiligence
+```
+
+2️⃣ Update decision rule (`Germany` layer)
+
+```
+If Country = DE
+→ Include EMEA_DE_EBO_REVIEW
+```
+
+3️⃣ (Optional) Add a new reusable subflow if needed
+
+🚫 No Case Type change
+🚫 No lifecycle change
+🚫 No stage change
+
+---
+
+# 6️⃣ When WOULD you need to change Case Type?
+
+Only if:
+
+* A **new stage** is legally required
+* Lifecycle order changes
+* Case closure semantics change
+
+These are **rare** and global.
+
+---
+
+# 7️⃣ Why this satisfies regulators
+
+For any case, you can show:
+
+* Country = DE
+* Decision output = task added
+* Decision version
+* Task execution evidence
+
+This is **stronger than Case Type changes**.
+
+---
+
+# 8️⃣ Testing impact (important)
+
+| Change              | Test scope             |
+| ------------------- | ---------------------- |
+| New DE task         | DE decision tests only |
+| New task definition | Data validation        |
+| Case Type change    | Global regression      |
+
+---
+
+# 9️⃣ Anti-patterns to avoid
+
+❌ Adding assignments in Case Type
+❌ Country-specific flows
+❌ Circumstanced Case Types
+❌ Hard-coded task logic
+
+---
+
+# Final answer (clear)
+
+> **You do NOT modify the Case Type to add a new EMEA task.**
+> **You add data + decision logic.**
+
+If adding a task forces you to modify the Case Type, **the design is not decision-driven**.
+
+---
+
+If you want, I can next:
+
+* Draw the **exact Pega rules & classes**
+* Provide **sample decision tables**
+* Show **task orchestration pseudocode**
+* Validate this against **Pega guardrails**
+
+Just tell me.
